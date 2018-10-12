@@ -5,9 +5,11 @@ import Browser.Events exposing (onAnimationFrameDelta)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onClick, onFocus)
+import Html.Keyed
 import Json.Decode as Json
 import List exposing (head, map, range, reverse, tail)
 import Maybe exposing (andThen, withDefault)
+import Random
 
 
 
@@ -29,6 +31,7 @@ type alias Model =
     , running : Bool
     , message : String
     , delta : Float
+    , food : Point
     }
 
 
@@ -48,19 +51,27 @@ type Direction
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( Model
-        (range 1 6 |> reverse |> map (\x -> Point x 1))
+        (range 1 3 |> reverse |> map (\x -> Point x 1))
         Right
         Right
         False
         "Click here to start"
         0
-    , Cmd.none
+        (Point 0 0)
+    , newFoodCmd
     )
 
 
 frameDuration : Float
 frameDuration =
     80
+
+
+newFoodCmd : Cmd Msg
+newFoodCmd =
+    Random.generate
+        (\( x, y ) -> Point x y |> PlaceFood)
+        (Random.pair (Random.int 0 39) (Random.int 0 39))
 
 
 
@@ -71,15 +82,18 @@ type Msg
     = Face Direction
     | Pause String
     | Play
+    | PlaceFood Point
     | Tick Float
     | Walk
-    | Validate
-    | DoNothing
+    | NoOp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
         Pause message ->
             ( { model | running = False, message = message }, Cmd.none )
 
@@ -89,17 +103,18 @@ update msg model =
         Face desiredDirection ->
             ( { model | desiredDirection = desiredDirection }, Cmd.none )
 
+        PlaceFood food ->
+            ( { model | food = food }, Cmd.none )
+
         Tick d ->
             { model | delta = model.delta + d } |> update Walk
 
         Walk ->
-            model |> walk |> update Validate
-
-        Validate ->
-            ( validate model, Cmd.none )
-
-        DoNothing ->
-            ( model, Cmd.none )
+            let
+                ( newModel, cmd ) =
+                    walk model
+            in
+            ( validate newModel, cmd )
 
 
 validate model =
@@ -128,18 +143,23 @@ isSnakeAlive { snake } =
 
 walk model =
     if model.delta < frameDuration then
-        model
+        ( model, Cmd.none )
 
     else
         let
             nextDirection =
                 getValidDirection model.currentDirection model.desiredDirection
+
+            ( newSnake, cmd ) =
+                walkSnake nextDirection model
         in
-        { model
+        ( { model
             | delta = model.delta - frameDuration
-            , snake = walkSnake nextDirection model.snake
+            , snake = newSnake
             , currentDirection = nextDirection
-        }
+          }
+        , cmd
+        )
 
 
 getValidDirection : Direction -> Direction -> Direction
@@ -161,9 +181,17 @@ getValidDirection current wanted =
             wanted
 
 
-walkSnake : Direction -> List Point -> List Point
-walkSnake dir snake =
-    walkHead dir snake :: walkTail snake
+walkSnake : Direction -> Model -> ( List Point, Cmd Msg )
+walkSnake dir { snake, food } =
+    let
+        newHead =
+            walkHead dir snake
+    in
+    if newHead == food then
+        ( newHead :: snake, newFoodCmd )
+
+    else
+        ( newHead :: walkTail snake, Cmd.none )
 
 
 walkHead : Direction -> List Point -> Point
@@ -218,6 +246,7 @@ view model =
     div []
         [ node "style" [] [ text "@import url('./styles.css')" ]
         , board model
+        , div [ class "score" ] [ model.snake |> List.length |> (+) -3 |> String.fromInt |> (++) "Score: " |> text ]
         ]
 
 
@@ -225,7 +254,9 @@ board : Model -> Html Msg
 board model =
     let
         snakeElements =
-            map snakeDot model.snake
+            model.snake
+                |> map (dot "snake")
+                |> List.indexedMap (\k v -> ( "s" ++ String.fromInt k, v ))
 
         overlayDiv =
             div [ class "overlay" ] [ text model.message ]
@@ -237,7 +268,7 @@ board model =
             else
                 "paused"
     in
-    div
+    Html.Keyed.node "div"
         [ class "board"
         , class pausedClass
         , tabindex 0
@@ -245,11 +276,11 @@ board model =
         , onFocus Play
         , onBlur (Pause "Paused - Click here to resume")
         ]
-        (overlayDiv :: snakeElements)
+        (( "o", overlayDiv ) :: ( "f", dot "food" model.food ) :: snakeElements)
 
 
-snakeDot : Point -> Html Msg
-snakeDot point =
+dot : String -> Point -> Html Msg
+dot kind point =
     let
         x =
             String.fromInt (point.x * 10)
@@ -260,7 +291,7 @@ snakeDot point =
         translate =
             "translate(" ++ x ++ "px, " ++ y ++ "px)"
     in
-    div [ class "dot", style "transform" translate ] []
+    div [ class "dot", class kind, style "transform" translate ] []
 
 
 onKeyDown : (Int -> msg) -> Attribute msg
@@ -284,4 +315,4 @@ mapDirection key =
             Face Down
 
         _ ->
-            DoNothing
+            NoOp

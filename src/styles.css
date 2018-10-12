@@ -22,6 +22,8 @@
   text-align: center;
   top: 50%;
   margin-top: -24px;
+  z-index: 1;
+  opacity: 0.8;
 }
 
 .paused .overlay {
@@ -31,10 +33,23 @@
 .dot {
   width: 8px;
   height: 8px;
-  background-color: darkgreen;
   margin: 1px;
   position: absolute;
   top: 1px;
   left: 1px;
-  transition: linear 80ms transform;
+}
+
+.dot.snake {
+  background-color: darkgreen;
+  transition: all 80ms linear;
+}
+
+.dot.food {
+  background-color: red;
+  border-radius: 4px;
+}
+
+.score {
+  font-size: 20px;
+  text-align: center;
 }
