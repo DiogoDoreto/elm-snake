@@ -255,7 +255,7 @@ board model =
         snakeElements =
             model.snake
                 |> map (dot "snake")
-                |> List.indexedMap (\k v -> ( "s" ++ String.fromInt k, v ))
+                |> List.indexedMap (\k v -> ( String.fromInt k, v ))
 
         overlayDiv =
             div [ class "overlay" ] [ text model.message ]
