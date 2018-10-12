@@ -244,8 +244,7 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div []
-        [ node "style" [] [ text "@import url('./styles.css')" ]
-        , board model
+        [ board model
         , div [ class "score" ] [ model.snake |> List.length |> (+) -3 |> String.fromInt |> (++) "Score: " |> text ]
         ]
 
