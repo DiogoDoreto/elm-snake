@@ -1,4 +1,4 @@
-module Main exposing (Direction(..), Model, Msg(..), Point, board, init, main, mapDirection, onKeyDown, snakeDot, update, view, walkHead, walkSnake, walkTail)
+module Main exposing (main)
 
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
@@ -6,9 +6,8 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onClick, onFocus)
 import Json.Decode as Json
-import List
+import List exposing (map, range, reverse)
 import Maybe
-import Time
 
 
 
@@ -21,6 +20,16 @@ main =
 
 
 -- MODEL
+
+
+type alias Model =
+    { snake : List Point
+    , currentDirection : Direction
+    , desiredDirection : Direction
+    , running : Bool
+    , message : String
+    , delta : Float
+    }
 
 
 type alias Point =
@@ -36,20 +45,10 @@ type Direction
     | Right
 
 
-type alias Model =
-    { snake : List Point
-    , currentDirection : Direction
-    , newDirection : Direction
-    , running : Bool
-    , message : String
-    , delta : Float
-    }
-
-
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( Model
-        [ { x = 3, y = 1 }, { x = 2, y = 1 }, { x = 1, y = 1 } ]
+        (range 1 6 |> reverse |> map (\x -> Point x 1))
         Right
         Right
         False
@@ -73,6 +72,8 @@ type Msg
     | Pause String
     | Play
     | Tick Float
+    | Walk
+    | Validate
     | DoNothing
 
 
@@ -85,33 +86,20 @@ update msg model =
         Play ->
             ( { model | running = True, message = "", delta = 0 }, Cmd.none )
 
-        Face newDirection ->
-            ( { model | newDirection = newDirection }, Cmd.none )
+        Face desiredDirection ->
+            ( { model | desiredDirection = desiredDirection }, Cmd.none )
 
         Tick d ->
-            ( { model | delta = model.delta + d } |> walk |> validate, Cmd.none )
+            { model | delta = model.delta + d } |> update Walk
+
+        Walk ->
+            model |> walk |> update Validate
+
+        Validate ->
+            ( validate model, Cmd.none )
 
         DoNothing ->
             ( model, Cmd.none )
-
-
-isValidDir : Direction -> Direction -> Bool
-isValidDir current wanted =
-    case ( current, wanted ) of
-        ( Up, Down ) ->
-            False
-
-        ( Right, Left ) ->
-            False
-
-        ( Down, Up ) ->
-            False
-
-        ( Left, Right ) ->
-            False
-
-        _ ->
-            True
 
 
 validate model =
@@ -132,19 +120,38 @@ validate model =
 
 
 walk model =
-    if model.delta > frameDuration then
-        let
-            direction =
-                if isValidDir model.currentDirection model.newDirection then
-                    model.newDirection
-
-                else
-                    model.currentDirection
-        in
-        { model | delta = model.delta - frameDuration, snake = walkSnake direction model.snake, currentDirection = direction }
+    if model.delta < frameDuration then
+        model
 
     else
-        model
+        let
+            nextDirection =
+                getValidDirection model.currentDirection model.desiredDirection
+        in
+        { model
+            | delta = model.delta - frameDuration
+            , snake = walkSnake nextDirection model.snake
+            , currentDirection = nextDirection
+        }
+
+
+getValidDirection : Direction -> Direction -> Direction
+getValidDirection current wanted =
+    case ( current, wanted ) of
+        ( Up, Down ) ->
+            current
+
+        ( Right, Left ) ->
+            current
+
+        ( Down, Up ) ->
+            current
+
+        ( Left, Right ) ->
+            current
+
+        _ ->
+            wanted
 
 
 walkSnake : Direction -> List Point -> List Point
@@ -156,7 +163,7 @@ walkHead : Direction -> List Point -> Point
 walkHead dir snake =
     snake
         |> List.head
-        |> Maybe.withDefault { x = 1, y = 1 }
+        |> Maybe.withDefault (Point 1 1)
         |> (\head ->
                 case dir of
                     Right ->
@@ -176,10 +183,10 @@ walkHead dir snake =
 walkTail : List Point -> List Point
 walkTail snake =
     snake
-        |> List.reverse
+        |> reverse
         |> List.tail
         |> Maybe.withDefault []
-        |> List.reverse
+        |> reverse
 
 
 
@@ -211,7 +218,7 @@ board : Model -> Html Msg
 board model =
     let
         snakeElements =
-            List.map snakeDot model.snake
+            map snakeDot model.snake
 
         overlayDiv =
             div [ class "overlay" ] [ text model.message ]
