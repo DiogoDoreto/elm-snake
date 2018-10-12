@@ -6,8 +6,8 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onClick, onFocus)
 import Json.Decode as Json
-import List exposing (map, range, reverse)
-import Maybe
+import List exposing (head, map, range, reverse, tail)
+import Maybe exposing (andThen, withDefault)
 
 
 
@@ -103,20 +103,27 @@ update msg model =
 
 
 validate model =
-    let
-        isInside =
-            model.snake
-                |> List.head
-                |> Maybe.withDefault (Point 0 0)
-                |> (\{ x, y } ->
-                        x >= 0 && y >= 0 && x < 40 && y < 40
-                   )
-    in
-    if isInside then
+    if isSnakeInsideBoard model && isSnakeAlive model then
         model
 
     else
         { model | running = False, message = "Game Over" }
+
+
+isSnakeInsideBoard { snake } =
+    snake
+        |> head
+        |> andThen (\{ x, y } -> Just (x >= 0 && y >= 0 && x < 40 && y < 40))
+        |> withDefault False
+
+
+isSnakeAlive { snake } =
+    case snake of
+        snakeHead :: snakeTail ->
+            List.all ((/=) snakeHead) snakeTail
+
+        _ ->
+            False
 
 
 walk model =
@@ -162,8 +169,8 @@ walkSnake dir snake =
 walkHead : Direction -> List Point -> Point
 walkHead dir snake =
     snake
-        |> List.head
-        |> Maybe.withDefault (Point 1 1)
+        |> head
+        |> withDefault (Point 1 1)
         |> (\head ->
                 case dir of
                     Right ->
@@ -184,8 +191,8 @@ walkTail : List Point -> List Point
 walkTail snake =
     snake
         |> reverse
-        |> List.tail
-        |> Maybe.withDefault []
+        |> tail
+        |> withDefault []
         |> reverse
 
 
