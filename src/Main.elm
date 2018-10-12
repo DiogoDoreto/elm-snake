@@ -78,23 +78,21 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    validate <|
-        walk <|
-            case msg of
-                Pause message ->
-                    ( { model | running = False, message = message }, Cmd.none )
+    case msg of
+        Pause message ->
+            ( { model | running = False, message = message }, Cmd.none )
 
-                Play ->
-                    ( { model | running = True, message = "", delta = 0 }, Cmd.none )
+        Play ->
+            ( { model | running = True, message = "", delta = 0 }, Cmd.none )
 
-                Face newDirection ->
-                    ( { model | newDirection = newDirection }, Cmd.none )
+        Face newDirection ->
+            ( { model | newDirection = newDirection }, Cmd.none )
 
-                Tick d ->
-                    ( { model | delta = model.delta + d }, Cmd.none )
+        Tick d ->
+            ( { model | delta = model.delta + d } |> walk |> validate, Cmd.none )
 
-                DoNothing ->
-                    ( model, Cmd.none )
+        DoNothing ->
+            ( model, Cmd.none )
 
 
 isValidDir : Direction -> Direction -> Bool
@@ -116,7 +114,7 @@ isValidDir current wanted =
             True
 
 
-validate ( model, cmd ) =
+validate model =
     let
         isInside =
             model.snake
@@ -127,13 +125,13 @@ validate ( model, cmd ) =
                    )
     in
     if isInside then
-        ( model, cmd )
+        model
 
     else
-        ( { model | running = False, message = "Game Over" }, cmd )
+        { model | running = False, message = "Game Over" }
 
 
-walk ( model, cmd ) =
+walk model =
     if model.delta > frameDuration then
         let
             direction =
@@ -143,10 +141,10 @@ walk ( model, cmd ) =
                 else
                     model.currentDirection
         in
-        ( { model | delta = model.delta - frameDuration, snake = walkSnake direction model.snake, currentDirection = direction }, cmd )
+        { model | delta = model.delta - frameDuration, snake = walkSnake direction model.snake, currentDirection = direction }
 
     else
-        ( model, cmd )
+        model
 
 
 walkSnake : Direction -> List Point -> List Point
